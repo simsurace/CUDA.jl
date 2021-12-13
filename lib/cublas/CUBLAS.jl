@@ -195,7 +195,7 @@ function log_message(ptr)
     @ccall memmove((pointer(log_buffer)+old_cursor)::Ptr{Nothing},
                    pointer(ptr)::Ptr{Nothing}, (len+1)::Csize_t)::Nothing
     log_cursor[] = new_cursor   # the consumer handles CAS'ing this value
-    @ccall uv_async_send(log_cond[]::Ptr{Nothing})::Cint
+    @ccall uv_async_send(log_cond[].handle::Ptr{Nothing})::Cint
 
     return
 end
