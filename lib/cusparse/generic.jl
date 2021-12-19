@@ -223,3 +223,53 @@ function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseM
 
     return C
 end
+
+function mm!(transa::SparseChar, transb::SparseChar, alpha::Number, A::CuSparseMatrixCSR{T},
+             B::CuSparseMatrixCSR{T}, beta::Number, C::CuSparseMatrixCSR{T}, index::SparseChar) where {T}
+    m,k = size(A)
+    n = size(C)[2]
+
+    if transa == 'N' && transb == 'N'
+        chkmmdims(B,C,k,n,m,n)
+    else
+        throw(ArgumentError("Sparse mm! only supports transa ($transa) = 'N' and transb ($transb) = 'N'"))
+    end
+
+    descA = CuSparseMatrixDescriptor(A, index)
+    descB = CuSparseMatrixDescriptor(B, index)
+    descC = CuSparseMatrixDescriptor(C, index)
+
+
+    spgemm_Desc = CuSpGEMMDescriptor()
+    function buffer1Size()
+        out = Ref{Csize_t}()
+        cusparseSpGEMM_workEstimation(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, CUSPARSE_SPGEMM_DEFAULT, spgemm_Desc, out, CU_NULL)
+        return out[]
+    end
+    with_workspace(buffer1Size) do buffer
+        out = Ref{Csize_t}(sizeof(buffer))
+        cusparseSpGEMM_workEstimation(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, CUSPARSE_SPGEMM_DEFAULT, spgemm_Desc, out, buffer)
+    end
+    function buffer2Size()
+        out = Ref{Csize_t}()
+        cusparseSpGEMM_compute(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, CUSPARSE_SPGEMM_DEFAULT, spgemm_Desc, out, CU_NULL)
+        return out[]
+    end
+    with_workspace(buffer2Size) do buffer
+        out = Ref{Csize_t}(sizeof(buffer))
+        cusparseSpGEMM_compute(
+            handle(), transa, transb, Ref{T}(alpha), descA, descB, Ref{T}(beta),
+            descC, T, CUSPARSE_SPGEMM_DEFAULT, spgemm_Desc, out, buffer)
+    end
+    cusparseSpGEMM_copy(handle(), transa, transb, Ref{T}(alpha), descA, descB,
+                        Ref{T}(beta), descC, T, CUSPARSE_SPGEMM_DEFAULT, spgemm_Desc)
+
+    return C
+end
+

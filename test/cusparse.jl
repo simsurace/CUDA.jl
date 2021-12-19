@@ -971,6 +971,33 @@ end
             @test D ≈ h_D
         end
     end
+    
+    @testset for elty in [Float32,Float64,ComplexF32,ComplexF64]
+        A = sparse(rand(elty,m,k))
+        B = sparse(rand(elty,k,n))
+        C = sparse(rand(elty,m,n))
+        alpha = rand(elty)
+        beta = rand(elty)
+        @testset "$(typeof(d_A))" for (d_A, d_B, d_C) in [
+                                                          (CuSparseMatrixCSR(A),
+                                                           CuSparseMatrixCSR(B),
+                                                           CuSparseMatrixCSR(C))] # for now only supports CSR
+            mm! = if CUSPARSE.version() < v"10.3.1" && d_A isa CuSparseMatrixCSR
+                CUSPARSE.mm2!
+            else
+                CUSPARSE.mm!
+            end
+            @test_throws ArgumentError mm!('N','T',alpha,d_A,d_B,beta,d_C,'O')
+            @test_throws ArgumentError mm!('T','N',alpha,d_A,d_B,beta,d_C,'O')
+            @test_throws ArgumentError mm!('T','T',alpha,d_A,d_B,beta,d_C,'O')
+            @test_throws DimensionMismatch mm!('N','N',alpha,d_A,d_B,beta,d_B,'O')
+            mm!('N','N',alpha,d_A,d_B,beta,d_C,'O')
+            h_D = collect(d_C)
+            D = alpha * A * B + beta * C
+            @test D ≈ h_D
+        end
+    end
+
 
     @testset "issue 493" begin
         x = cu(rand(20))
