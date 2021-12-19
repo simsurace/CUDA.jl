@@ -476,6 +476,20 @@ for srcTy in [Mem.Device, Mem.Host, Mem.Unified],
     @grab_output show(stdout, dst)
     Mem.free(src)
     Mem.free(dst)
+
+end
+
+# test peer copy
+if ndevices() > 1
+    device!(1)
+    src = Mem.alloc(Mem.Device, nb)
+    device!(2)
+    dst = Mem.alloc(Mem.Device, nb)
+    unsafe_copyto!(pointer(ref), typed_pointer(dst, T), N)
+    device!(2)
+    Mem.free(dst)
+    device!(1)
+    Mem.free(src)
 end
 
 # pointer attributes

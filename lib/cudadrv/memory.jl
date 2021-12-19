@@ -386,7 +386,6 @@ end
 
 for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", CuPtr, Ptr),
                                  ("cuMemcpyHtoDAsync_v2", Ptr,   CuPtr),
-                                 ("cuMemcpyDtoDAsync_v2", CuPtr, CuPtr),
                                  )
     @eval function Base.unsafe_copyto!(dst::$dstPtrTy{T}, src::$srcPtrTy{T}, N::Integer;
                                        stream::CuStream=stream(),
@@ -395,6 +394,19 @@ for (fn, srcPtrTy, dstPtrTy) in (("cuMemcpyDtoHAsync_v2", CuPtr, Ptr),
         async || synchronize(stream)
         return dst
     end
+end
+
+function Base.unsafe_copyto!(dst::CuPtr{T}, src::CuPtr{T}, N::Integer;
+                             stream::CuStream=stream(),
+                             async::Bool=false) where T
+    # same device case
+    if device(dst) == device(src)
+        CUDA.cuMemcpyDtoDAsync_v2(dst, src, N*sizeof(T), stream)
+    else # different device case
+        CUDA.cuMemcpyPeerAsync(dst, context(dst), src, context(src), N*sizeof(T), stream)
+    end
+    async || synchronize(stream)
+    return dst
 end
 
 function Base.unsafe_copyto!(dst::CuArrayPtr{T}, doffs::Integer, src::Ptr{T}, N::Integer;
